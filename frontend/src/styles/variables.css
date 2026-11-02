@@ -1,0 +1,53 @@
+
+:root {
+  /* Backgrounds */
+  --bg-app: #f5f4fa;
+  --bg-surface: #ffffff;
+  --bg-hover: #f8f6fc;
+
+  /* Brand */
+  --primary: #7555cc;
+  --primary-hover: #6041b5;
+  --primary-light: #f0eafb;
+
+  /* Typography */
+  --text-primary: #252336;
+  --text-secondary: #807c91;
+
+  /* Borders */
+  --border: #e9e6f0;
+
+  /* Status colors */
+  --status-applied: #3c66af;
+  --status-applied-bg: #e8f0fd;
+
+  --status-interview: #926518;
+  --status-interview-bg: #fff2da;
+
+  --status-offer: #287952;
+  --status-offer-bg: #e2f4eb;
+
+  --status-rejected: #b44963;
+  --status-rejected-bg: #fce7eb;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-card: 0 4px 20px rgba(39, 30, 74, 0.035);
+
+  /* Layout */
+  --sidebar-width: 250px;
+}
