@@ -3,7 +3,7 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: tracker
-      POSTGRES_PASSWORD: local_dev_password
+      POSTGRES_PASSWORD: ${pass_123456}
       POSTGRES_DB: job_tracker
     ports:
       - "5433:5432"
