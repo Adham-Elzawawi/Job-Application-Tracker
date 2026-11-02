@@ -31,7 +31,7 @@ Replace `<repository-url>` with the repository's actual Git URL. Run subsequent 
 Create a file named **`backend/.env`** containing:
 
 ```dotenv
-DATABASE_URL=postgresql+psycopg://tracker:local_dev_password@localhost:5433/job_tracker
+DATABASE_URL=postgresql+psycopg://tracker:pass_123456@localhost:5433/job_tracker
 ```
 
 This connection string matches the local development settings in `compose.yaml`:
@@ -42,7 +42,7 @@ This connection string matches the local development settings in `compose.yaml`:
 | Host port | `5433` |
 | Database name | `job_tracker` |
 | PostgreSQL user | `tracker` |
-| PostgreSQL password | `local_dev_password` |
+| PostgreSQL password | `pass_123456` |
 
 These are **development-only credentials**. Do not reuse them in production, and do not commit `.env` files to Git. If the Compose configuration changes, update `DATABASE_URL` accordingly.
 
