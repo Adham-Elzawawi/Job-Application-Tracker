@@ -27,6 +27,10 @@ export default function DashboardPage() {
           <p className="stat-label">Applications Rejected</p>
           <h2 className="stat-value">10</h2>
         </div>
+        <div className="card">
+          <p className="stat-label">Applications Accepted</p>
+          <h2 className="stat-value">1</h2>
+        </div>
       </div>
     </>
   );
