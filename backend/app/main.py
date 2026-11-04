@@ -2,13 +2,20 @@
 from uuid import UUID
 
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+
 from pwdlib import PasswordHash
 
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
+
 from .database import get_db
-from .models import Application, User
+from .models import Application, User, AuthSession
 
 from .schemas import LoginRequest, SignupRequest, ApplicationForm
 
@@ -25,6 +32,45 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed_password: str) -> bool:
     """Check a plaintext password against a stored hash."""
     return password_hash.verify(password, hashed_password)
+
+bearer_scheme = HTTPBearer()
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """Validate the session token and return its associated user."""
+
+    # Hash the received token to match the stored token hash.
+    token_hash = hashlib.sha256(
+        credentials.credentials.encode("utf-8")
+    ).hexdigest()
+
+    # Look up a valid, non-expired session.
+    session = db.scalar(
+        select(AuthSession).where(
+            AuthSession.token_hash == token_hash,
+            AuthSession.expires_at > datetime.now(timezone.utc),
+        )
+    )
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        )
+
+    # Retrieve the user associated with the session.
+    user = db.get(User, session.user_id)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session user not found",
+        )
+
+    return user
 
 @app.get("/")
 def read_root():
@@ -53,34 +99,46 @@ def get_applications(user_id: UUID, db: Session = Depends(get_db)):
 
 @app.post("/login")
 def login(
-    login_request: LoginRequest, 
+    login_request: LoginRequest,
     db: Session = Depends(get_db)
 ):
-    """Authenticate a user based on email and password."""
-    print(f"Received login request: {login_request}")
+    """Authenticate the user and create a session."""
 
-    # Retrieve the user by email.
+    # Retrieve user by email.
     user = db.scalar(
         select(User).where(User.email == login_request.email)
     )
 
-    if not user:
+    # Verify credentials.
+    if not user or not verify_password(
+        login_request.password,
+        user.password_hash
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
 
-    # Verify the provided password against the stored hash.
-    if not verify_password(login_request.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
-        )
+    # Generate a cryptographically secure session token.
+    token = secrets.token_urlsafe(32)
+
+    # Store only the token hash in PostgreSQL.
+    session = AuthSession(
+        user_id=user.id,
+        token_hash=hashlib.sha256(
+            token.encode("utf-8")
+        ).hexdigest(),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+
+    db.add(session)
+    db.commit()
 
     return {
         "message": "Login successful",
-        "user_id": user.id
+        "session_token": token,
     }
+
 
 @app.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(
@@ -174,3 +232,14 @@ def send_application(
 
 
 
+@app.get("/users/me")
+def read_current_user(
+    user: User = Depends(get_current_user),
+):
+    """Return the currently authenticated user's information."""
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+    }

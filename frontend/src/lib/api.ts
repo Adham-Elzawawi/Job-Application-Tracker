@@ -1,5 +1,7 @@
 
 import { LoginFormSchema, SignupFormSchema, ApplicationFormSchema} from "@/lib/definitions";
+import { getSession } from "@/lib/session";
+
 import type { z } from "zod";
 
 // Infer request types from the existing Zod schemas.
@@ -55,4 +57,29 @@ export async function createApplication(data: ApplicationData) {
     },
     body: JSON.stringify(data),
   });
+}
+
+export async function getCurrentUser() {
+  const sessionToken = await getSession();
+
+  if (!sessionToken) {
+    return null;
+  }
+
+  const response = await fetch("http://localhost:8000/users/me", {
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    name: string;
+    email: string;
+  }>;
 }

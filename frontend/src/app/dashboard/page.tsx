@@ -1,10 +1,16 @@
 
 import { getApplications } from "@/lib/api";
+import { getCurrentUser } from "@/lib/api";
+import { redirect } from "next/dist/client/components/navigation";
 import Link from 'next/link';
 
 
 export default async function DashboardPage() {
-  const userId = "7fd6a729-985e-4660-ba3c-ea126e2c5b3d"; // Temporary user ID until session is implemented
+  const user = await getCurrentUser();
+  
+  if (!user) {return (redirect("/login"));}
+
+  const userId = user.id;
   const response = await getApplications(userId);
   const applications = await response.json();
   

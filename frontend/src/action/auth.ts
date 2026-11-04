@@ -9,6 +9,8 @@ import {
 
 import { loginCall, signupCall } from "@/lib/api";
 
+import { saveSession } from "@/lib/session";
+
 /**
  * Validate signup information and create a user account.
  *
@@ -74,13 +76,12 @@ export async function login(
   formData: FormData
 ): Promise<FormState> {
 
-  // Validate form fields using Zod.
+  // Validate submitted credentials.
   const validatedFields = LoginFormSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
   });
 
-  // Return field-specific errors if validation fails.
   if (!validatedFields.success) {
     return {
       errors: z.flattenError(validatedFields.error).fieldErrors,
@@ -88,21 +89,29 @@ export async function login(
   }
 
   try {
-    // Send validated login credentials to FastAPI.
+    // Authenticate the user through FastAPI.
     const response = await loginCall(validatedFields.data);
     const data = await response.json();
 
-    // Handle invalid credentials or other API errors.
     if (!response.ok) {
       return {
         message:
           typeof data.detail === "string"
             ? data.detail
-            : "Login failed.",
+            : "Invalid email or password.",
       };
     }
 
-    // Credentials verified successfully.
+    // FastAPI must return a valid session token.
+    if (typeof data.session_token !== "string") {
+      return {
+        message: "No session token received from the server.",
+      };
+    }
+
+    // Store the session in an HTTP-only cookie.
+    await saveSession(data.session_token);
+
     return {
       message: "Login successful",
     };
