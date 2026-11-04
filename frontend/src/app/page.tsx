@@ -1,5 +1,8 @@
-import { redirect } from "next/navigation";
-
+/**
+ * Home page.
+ *
+ * Navigation is handled by proxy.ts.
+ */
 export default function Home() {
-  redirect("/login");
+  return null;
 }
