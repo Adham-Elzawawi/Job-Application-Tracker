@@ -1,0 +1,393 @@
+
+/* =========================================================
+   ADD APPLICATION PAGE
+   ========================================================= */
+
+.page {
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 12px 0 48px;
+  color: #182139;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.page * {
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   PAGE HEADER
+   ========================================================= */
+
+.header {
+  margin-bottom: 32px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 22px;
+  color: #777f91;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.backLink:hover {
+  color: #6856e8;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 36px);
+  font-weight: 800;
+  letter-spacing: -1.2px;
+  line-height: 1.2;
+}
+
+.description {
+  margin: 10px 0 0;
+  color: #858d9e;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* =========================================================
+   FORM CARD
+   ========================================================= */
+
+.formCard {
+  background: #ffffff;
+  border: 1px solid #e9ebf2;
+  border-radius: 16px;
+  box-shadow: 0 8px 35px rgba(30, 39, 77, 0.035);
+  overflow: hidden;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 32px;
+  border-bottom: 1px solid #eef0f5;
+}
+
+.cardIcon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+
+  background: #efedff;
+  color: #6b5ae6;
+
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.4px;
+  color: #202841;
+}
+
+.cardDescription {
+  margin: 6px 0 0;
+  color: #9199a9;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   FORM LAYOUT
+   ========================================================= */
+
+.form {
+  width: 100%;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px 24px;
+  padding: 34px 32px 40px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #384157;
+}
+
+.required {
+  color: #705dec;
+  margin-left: 2px;
+}
+
+/* =========================================================
+   INPUTS
+   ========================================================= */
+
+.input,
+.select {
+  display: block;
+  width: 100%;
+  height: 49px;
+  padding: 0 15px;
+
+  border: 1px solid #e2e6ef;
+  border-radius: 9px;
+
+  background-color: #fbfcff;
+  color: #29344d;
+
+  font-family: inherit;
+  font-size: 13px;
+
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.input::placeholder {
+  color: #adb3c1;
+}
+
+.input:hover,
+.select:hover {
+  border-color: #c5c8d8;
+}
+
+.input:focus,
+.select:focus {
+  border-color: #8b7cf0;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(113, 94, 232, 0.11);
+}
+
+.select {
+  cursor: pointer;
+  padding-right: 35px;
+}
+
+.select option {
+  color: #29344d;
+  background-color: white;
+}
+
+.fieldHint {
+  margin: 9px 0 0;
+  color: #9aa2b1;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Date input */
+
+.input[type="date"] {
+  color: #475069;
+  cursor: pointer;
+}
+
+.input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+/* =========================================================
+   FORM ACTIONS
+   ========================================================= */
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+
+  padding: 22px 32px;
+  background-color: #fcfcff;
+  border-top: 1px solid #eef0f5;
+}
+
+/* Cancel button */
+
+.cancelButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 100px;
+  height: 44px;
+  padding: 0 20px;
+
+  border: 1px solid #e4e6ee;
+  border-radius: 9px;
+
+  background: #ffffff;
+  color: #626c80;
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+
+  transition: all 0.2s ease;
+}
+
+.cancelButton:hover {
+  background-color: #f5f6fa;
+  border-color: #d5d9e3;
+  color: #303a51;
+}
+
+/* Save button */
+
+.submitButton {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+
+  min-width: 170px;
+  height: 44px;
+  padding: 0 20px;
+
+  border: none;
+  border-radius: 9px;
+
+  background-color: #6c5ae4;
+  color: #ffffff;
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 750;
+
+  cursor: pointer;
+  box-shadow: 0 5px 14px rgba(107, 88, 209, 0.16);
+
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.submitButton span {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.submitButton:hover {
+  background-color: #5947d5;
+  box-shadow: 0 7px 18px rgba(107, 88, 209, 0.22);
+  transform: translateY(-1px);
+}
+
+.submitButton:active {
+  transform: translateY(0);
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Keyboard accessibility */
+
+.cancelButton:focus-visible,
+.submitButton:focus-visible {
+  outline: 3px solid rgba(108, 90, 228, 0.3);
+  outline-offset: 3px;
+}
+
+/* =========================================================
+   RESPONSIVE DESIGN
+   ========================================================= */
+
+@media (max-width: 768px) {
+  .page {
+    padding: 8px 0 32px;
+  }
+
+  .header {
+    margin-bottom: 24px;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    padding: 26px 22px;
+  }
+
+  .cardHeader {
+    padding: 24px 22px;
+  }
+
+  .actions {
+    padding: 20px 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .title {
+    font-size: 27px;
+  }
+
+  .cardIcon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .cancelButton,
+  .submitButton {
+    width: 100%;
+  }
+}
+
+
+.error {
+  color: #dc3545;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.errorMessage {
+  color: #dc3545;
+  font-size: 13px;
+  padding: 12px 32px;
+}
+
+.successMessage {
+  color: #23936b;
+  font-size: 13px;
+  padding: 12px 32px;
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

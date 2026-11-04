@@ -1,5 +1,7 @@
+
 import { getApplications } from "@/lib/api";
 import Link from 'next/link';
+
 
 export default async function DashboardPage() {
   const userId = "83403f75-fef7-4201-b66e-3266fd863f91"; // Replace with actual user ID retrieval logic
@@ -21,9 +23,9 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <button className="btn btn-primary">
+        <Link href="/addApplication" className="btn btn-primary">
           + Add Application
-        </button>
+        </Link>
       </header>
 
       <div className="stats-grid">

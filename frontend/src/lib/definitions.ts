@@ -38,3 +38,45 @@ export type FormState =
       message?: string
     }
   | undefined
+
+
+
+export type ApplicationFormState =
+  | {
+      errors?: {
+        user_id?: string[];
+        company_name?: string[];
+        position?: string[];
+        status?: string[];
+        applied_at?: string[];
+      };
+      message?: string;
+      success?: boolean;
+    }
+  | undefined;
+
+  
+export const ApplicationFormSchema = z.object({
+  user_id: z.uuid({
+    error: "A valid user ID is required.",
+  }),
+
+  company_name: z
+    .string()
+    .trim()
+    .min(1, { error: "Company name is required." }),
+
+  position: z
+    .string()
+    .trim()
+    .min(1, { error: "Position is required." }),
+
+  status: z.enum(
+    ["applied", "interview", "accepted", "rejected"],
+    { error: "Invalid application status." }
+  ),
+
+  applied_at: z.iso.date({
+    error: "A valid application date is required.",
+  }),
+});

@@ -10,7 +10,7 @@ from pwdlib import PasswordHash
 from .database import get_db
 from .models import Application, User
 
-from .schemas import LoginRequest, SignupRequest
+from .schemas import LoginRequest, SignupRequest, ApplicationForm
 
 app = FastAPI()
 
@@ -100,6 +100,50 @@ def signup(
     return {
         "message": "Signup successful",
         "user_id": new_user.id
+    }
+
+
+@app.post("/sendApplication", status_code=status.HTTP_201_CREATED)
+def send_application(
+    application: ApplicationForm,
+    db: Session = Depends(get_db)
+):
+    """Store a new job application in PostgreSQL."""
+
+    # Check whether the user exists.
+    user = db.get(User, application.user_id)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Create the application.
+    new_application = Application(
+        user_id=application.user_id,
+        company_name=application.company_name,
+        position=application.position,
+        status=application.status,
+        applied_at=application.applied_at
+    )
+
+    db.add(new_application)
+
+    try:
+        db.commit()
+        db.refresh(new_application)
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Application violates a database constraint"
+        )
+
+    return {
+        "message": "Application received",
+        "application_id": new_application.id
     }
 
 
