@@ -58,11 +58,11 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
    */
   useEffect(() => {
     if (state?.message === "Signup successful") {
-      router.replace("/login");
+      router.push("/login");
     }
 
     if (state?.message === "Login successful") {
-      router.replace("/dashboard");
+      router.push("/dashboard");
     }
   }, [state?.message, router]);
 
