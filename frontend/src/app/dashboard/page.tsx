@@ -4,12 +4,12 @@ import Link from 'next/link';
 
 
 export default async function DashboardPage() {
-  const userId = "83403f75-fef7-4201-b66e-3266fd863f91"; // Replace with actual user ID retrieval logic
+  const userId = "7fd6a729-985e-4660-ba3c-ea126e2c5b3d"; // Temporary user ID until session is implemented
   const response = await getApplications(userId);
   const applications = await response.json();
   
   const totalApplications = applications.length;
-  const applicationsInProgress = applications.filter((app: any) => app.status === "applied").length;
+  const applicationsInProgress = applications.filter((app: any) => app.status != "accepted" && app.status != "rejected").length;
   const applicationsRejected = applications.filter((app: any) => app.status === "rejected").length;
   const applicationsAccepted = applications.filter((app: any) => app.status === "accepted").length;
   

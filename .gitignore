@@ -10,3 +10,5 @@ __pycache__/
 # Node.js
 node_modules/
 .next/
+
+Logintest_credentials.txt

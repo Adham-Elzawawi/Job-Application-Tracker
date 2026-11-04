@@ -52,10 +52,35 @@ def get_applications(user_id: UUID, db: Session = Depends(get_db)):
     ]
 
 @app.post("/login")
-def login(login_request: LoginRequest):
-    # Here you would typically validate the user's credentials against your database
-    # For demonstration purposes, we'll just return a success message for now
-    return {"message": "Login successful", "email": login_request.email}
+def login(
+    login_request: LoginRequest, 
+    db: Session = Depends(get_db)
+):
+    """Authenticate a user based on email and password."""
+    print(f"Received login request: {login_request}")
+
+    # Retrieve the user by email.
+    user = db.scalar(
+        select(User).where(User.email == login_request.email)
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+
+    # Verify the provided password against the stored hash.
+    if not verify_password(login_request.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+
+    return {
+        "message": "Login successful",
+        "user_id": user.id
+    }
 
 @app.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(
