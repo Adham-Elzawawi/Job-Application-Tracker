@@ -1,7 +1,7 @@
 
 import { getApplications } from "@/lib/api";
 import { getCurrentUser } from "@/lib/api";
-import { redirect } from "next/dist/client/components/navigation";
+import { redirect } from "next/navigation";
 import Link from 'next/link';
 
 
@@ -52,9 +52,6 @@ export default async function DashboardPage() {
           <h2 className="stat-value">{applicationsAccepted}</h2>
         </div>
       </div>
-       <Link href="/login" className="btn btn-primary">
-      Login Page
-      </Link>
     </>
 
    

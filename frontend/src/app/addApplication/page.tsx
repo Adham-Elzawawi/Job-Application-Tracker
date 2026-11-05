@@ -2,8 +2,9 @@
 import Link from "next/link";
 import styles from "@/styles/AddApplication.module.css";
 import ApplicationForm from "@/components/ApplicationForm";
+import { getCurrentUser } from "@/lib/api";
 
-
+import { redirect } from "next/navigation";
 /**
  * Add Application Page
  *
@@ -11,8 +12,13 @@ import ApplicationForm from "@/components/ApplicationForm";
  * Submission functionality will be implemented separately.
  */
 export default async function addApplication() {
-
     
+    const user = await getCurrentUser();
+    
+    if (!user) {return (redirect("/login"));}
+    
+    const userId = user.id;
+
     return (
     <div className={styles.page}>
         {/* Page header */}
@@ -43,8 +49,8 @@ export default async function addApplication() {
             </div>
         </div>
 
-        {/* Temporary user ID until authentication is implemented */}
-        <ApplicationForm userId="7fd6a729-985e-4660-ba3c-ea126e2c5b3d" />
+        {/* Send the user's ID */}
+        <ApplicationForm userId={userId} />
         </div>
     </div>
     );
