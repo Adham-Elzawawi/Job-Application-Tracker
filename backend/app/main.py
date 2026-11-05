@@ -1,8 +1,10 @@
 
 from uuid import UUID
+from pathlib import Path
 
-from fastapi import FastAPI, Depends, HTTPException, status, Header
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import RedirectResponse
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,8 +18,13 @@ from datetime import datetime, timedelta, timezone
 
 from .database import get_db
 from .models import Application, User, AuthSession
-
 from .schemas import LoginRequest, SignupRequest, ApplicationForm
+
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request as GoogleRequest
+from googleapiclient.discovery import build
+
 
 app = FastAPI()
 
@@ -267,3 +274,179 @@ def read_current_user(
         "name": user.name,
         "email": user.email,
     }
+
+
+
+# Gmail configuration
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+
+CLIENT_SECRETS_FILE = BACKEND_DIR / "credentials.json"
+TOKEN_FILE = BACKEND_DIR / ".gmail_token.json"
+
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly"
+]
+
+REDIRECT_URI = "http://localhost:8000/gmail/callback"
+
+
+
+
+@app.get("/gmail/connect")
+def gmail_connect():
+    """Start Google OAuth authorization."""
+
+    flow = Flow.from_client_secrets_file(
+        str(CLIENT_SECRETS_FILE),
+        scopes=SCOPES,
+        autogenerate_code_verifier=True,
+    )
+
+    flow.redirect_uri = REDIRECT_URI
+
+    authorization_url, state = flow.authorization_url(
+        access_type="offline",
+        prompt="consent",
+    )
+
+    # Verify the code verifier was generated.
+    print("Verifier generated:", bool(flow.code_verifier))
+
+    response = RedirectResponse(authorization_url)
+
+    response.set_cookie(
+        "gmail_oauth_state",
+        state,
+        max_age=600,
+        httponly=True,
+        samesite="lax",
+    )
+
+    response.set_cookie(
+        "gmail_code_verifier",
+        flow.code_verifier,
+        max_age=600,
+        httponly=True,
+        samesite="lax",
+    )
+
+    return response
+
+
+
+@app.get("/gmail/callback")
+def gmail_callback(request: Request, code: str, state: str):
+    """Exchange the authorization code for Google tokens."""
+
+    saved_state = request.cookies.get("gmail_oauth_state")
+    code_verifier = request.cookies.get("gmail_code_verifier")
+
+    saved_state = request.cookies.get("gmail_oauth_state")
+    code_verifier = request.cookies.get("gmail_code_verifier")
+
+    print("OAuth Debug:", {
+        "host": request.headers.get("host"),
+        "state_cookie_exists": bool(saved_state),
+        "verifier_cookie_exists": bool(code_verifier),
+        "state_matches": bool(
+            saved_state and secrets.compare_digest(saved_state, state)
+        ),
+    })
+
+    if (
+        not saved_state
+        or not secrets.compare_digest(saved_state, state)
+        or not code_verifier
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid OAuth state or missing code verifier",
+        )
+
+    flow = Flow.from_client_secrets_file(
+        str(CLIENT_SECRETS_FILE),
+        scopes=SCOPES,
+        state=state,
+        code_verifier=code_verifier,
+    )
+
+    flow.redirect_uri = REDIRECT_URI
+
+    flow.fetch_token(code=code)
+
+    credentials = flow.credentials
+
+    TOKEN_FILE.write_text(credentials.to_json())
+    TOKEN_FILE.chmod(0o600)
+
+    response = RedirectResponse("/docs")
+    response.delete_cookie("gmail_oauth_state")
+    response.delete_cookie("gmail_code_verifier")
+
+    return response
+
+
+
+@app.get("/gmail/messages")
+def gmail_messages():
+    """Read the latest 10 emails from the authorized account."""
+
+    if not TOKEN_FILE.exists():
+        raise HTTPException(
+            status_code=400,
+            detail="Connect Gmail first at /gmail/connect",
+        )
+
+    credentials = Credentials.from_authorized_user_file(
+        str(TOKEN_FILE),
+        SCOPES,
+    )
+
+    # Refresh expired access tokens when possible.
+    if credentials.expired and credentials.refresh_token:
+        credentials.refresh(GoogleRequest())
+        TOKEN_FILE.write_text(credentials.to_json())
+        TOKEN_FILE.chmod(0o600)
+
+    if not credentials.valid:
+        raise HTTPException(
+            status_code=401,
+            detail="Gmail authorization expired. Reconnect Gmail.",
+        )
+
+    service = build(
+        "gmail", "v1", credentials=credentials
+    )
+
+    result = service.users().messages().list(
+        userId="me",
+        maxResults=10,
+        q="newer_than:300d {application interview job}"
+    ).execute()
+
+    messages = result.get("messages", [])
+    emails = []
+
+    for message in messages:
+        email = service.users().messages().get(
+            userId="me",
+            id=message["id"],
+            format="metadata",
+            metadataHeaders=["From", "Subject", "Date"],
+        ).execute()
+
+        headers = {
+            header["name"].lower(): header["value"]
+            for header in email.get("payload", {}).get("headers", [])
+        }
+
+        emails.append({
+            "id": email["id"],
+            "from": headers.get("from"),
+            "subject": headers.get("subject"),
+            "date": headers.get("date"),
+            "snippet": email.get("snippet"),
+        })
+
+    return {"emails": emails}
