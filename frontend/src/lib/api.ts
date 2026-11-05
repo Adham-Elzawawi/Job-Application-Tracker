@@ -59,6 +59,29 @@ export async function signupCall(data: SignupData) {
 }
 
 /**
+ * Send Logout to remove session from backend.
+ */
+export async function logoutCall() {
+  const sessionToken = await getSession();
+
+  if (!sessionToken) {
+    return;
+  }
+
+  const response = await fetch(`${API_URL}/logout`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to revoke session");
+  }
+}
+
+/**
  * Send application information to FastAPI.
  */
 export async function createApplication(data: ApplicationData) {
@@ -95,4 +118,3 @@ export async function getCurrentUser() {
     email: string;
   }>;
 }
-

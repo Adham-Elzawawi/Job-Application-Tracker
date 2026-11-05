@@ -7,9 +7,11 @@ import {
   FormState,
 } from "@/lib/definitions";
 
-import { loginCall, signupCall } from "@/lib/api";
+import { loginCall, signupCall, logoutCall } from "@/lib/api";
 
 import { saveSession } from "@/lib/session";
+import { deleteSession } from "@/lib/session";
+import { redirect } from "next/navigation";
 
 /**
  * Validate signup information and create a user account.
@@ -123,4 +125,13 @@ export async function login(
       message: "Unable to connect to the server.",
     };
   }
+}
+
+
+
+export async function logout() {
+  await logoutCall();
+  await deleteSession();
+
+  redirect("/login");
 }

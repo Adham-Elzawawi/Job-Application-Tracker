@@ -12,3 +12,6 @@ node_modules/
 .next/
 
 Logintest_credentials.txt
+
+backend/.gmail_token.json
+backend/credentials.json

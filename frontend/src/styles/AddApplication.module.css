@@ -391,3 +391,37 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.formCard + .formCard {
+  margin-top: 24px;
+}
+
+
+.emailHeader {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  border-bottom: none;
+}
+
+.emailText {
+  flex: 1;
+  min-width: 0;
+}
+
+.readEmailsButton {
+  margin-left: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .emailHeader {
+    flex-wrap: wrap;
+  }
+
+  .readEmailsButton {
+    margin-left: 0;
+    width: 100%;
+  }
+}

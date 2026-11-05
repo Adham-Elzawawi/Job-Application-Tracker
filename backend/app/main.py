@@ -1,7 +1,7 @@
 
 from uuid import UUID
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from sqlalchemy import select
@@ -186,6 +186,33 @@ def signup(
     }
 
 
+@app.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Invalidate the current user's session."""
+
+    # Hash the received token to match the stored token hash.
+    token_hash = hashlib.sha256(
+        credentials.credentials.encode("utf-8")
+    ).hexdigest()
+
+    # Retrieve the current session.
+    session = db.scalar(
+        select(AuthSession).where(
+            AuthSession.token_hash == token_hash,
+            AuthSession.user_id == user.id,
+        )
+    )
+
+    # Delete the session from PostgreSQL.
+    if session:
+        db.delete(session)
+        db.commit()
+    
+
 @app.post("/sendApplication", status_code=status.HTTP_201_CREATED)
 def send_application(
     application: ApplicationForm,
@@ -228,9 +255,6 @@ def send_application(
         "message": "Application received",
         "application_id": new_application.id
     }
-
-
-
 
 @app.get("/users/me")
 def read_current_user(
