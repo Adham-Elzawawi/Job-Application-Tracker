@@ -25,6 +25,7 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request as GoogleRequest
 from googleapiclient.discovery import build
 
+from .services.llm import analyze_email
 
 app = FastAPI()
 
@@ -422,11 +423,15 @@ def gmail_messages():
     result = service.users().messages().list(
         userId="me",
         maxResults=10,
-        q="newer_than:300d {application interview job}"
+        q="newer_than:600d {application interview job}"
     ).execute()
 
     messages = result.get("messages", [])
     emails = []
+
+    in_progress = 0
+    accepted = 0
+    rejected = 0
 
     for message in messages:
         email = service.users().messages().get(
@@ -441,12 +446,31 @@ def gmail_messages():
             for header in email.get("payload", {}).get("headers", [])
         }
 
-        emails.append({
-            "id": email["id"],
-            "from": headers.get("from"),
-            "subject": headers.get("subject"),
-            "date": headers.get("date"),
-            "snippet": email.get("snippet"),
-        })
+        
+        analysis = analyze_email(
+            sender=headers.get("from", ""),
+            subject=headers.get("subject", ""),
+            content=email.get("snippet", ""),
+        )
 
-    return {"emails": emails}
+        if analysis.is_application_related:
+
+            emails.append({
+                "id": email["id"],
+                "from": headers.get("from"),
+                "subject": headers.get("subject"),
+                "date": headers.get("date"),
+                "snippet": email.get("snippet"),
+                "analysis": analysis.model_dump(),
+            })
+
+            if analysis.status == "accepted":
+                accepted+=1
+            if analysis.status == "rejected":
+                rejected+=1
+            if analysis.status == "applied" or analysis.status == "interview":
+                in_progress+=1
+
+
+
+    return {"emails": emails, "count_emails": len(emails), "in progress":in_progress, "accepted":accepted, "rejected": rejected}
