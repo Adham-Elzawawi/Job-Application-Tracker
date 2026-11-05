@@ -9,6 +9,7 @@ import {
 } from "@/lib/definitions";
 
 import { createApplication } from "@/lib/api";
+import { updateTag } from "next/cache";
 
 /**
  * Validate application data and submit it to FastAPI.
@@ -57,6 +58,8 @@ export async function submitApplication(
         success: false,
         };
     }
+
+    updateTag(`applications:${validatedFields.data.user_id}`);
 
     // 6. Application successfully saved.
     return {

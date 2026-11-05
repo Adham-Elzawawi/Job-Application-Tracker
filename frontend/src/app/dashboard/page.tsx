@@ -11,8 +11,8 @@ export default async function DashboardPage() {
   if (!user) {return (redirect("/login"));}
 
   const userId = user.id;
-  const response = await getApplications(userId);
-  const applications = await response.json();
+  
+  const applications = await getApplications(userId);
   
   const totalApplications = applications.length;
   const applicationsInProgress = applications.filter((app: any) => app.status != "accepted" && app.status != "rejected").length;

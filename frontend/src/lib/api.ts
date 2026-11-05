@@ -1,6 +1,7 @@
 
 import { LoginFormSchema, SignupFormSchema, ApplicationFormSchema} from "@/lib/definitions";
 import { getSession } from "@/lib/session";
+import { cacheLife, cacheTag } from "next/cache";
 
 import type { z } from "zod";
 
@@ -12,12 +13,23 @@ type ApplicationData = z.infer<typeof ApplicationFormSchema>;
 const API_URL = "http://localhost:8000";
 
 /**
- * Retrieve all applications belonging to a user.
+ * Retrieve all applications belonging to a user and save it to the cache.
  */
 export async function getApplications(userId: string) {
-  return fetch(`${API_URL}/applications/${userId}`, {
-    cache: "no-store",
-  });
+  "use cache";
+
+  cacheLife("minutes");
+  cacheTag(`applications:${userId}`);
+
+  const response = await fetch(
+    `${API_URL}/applications/${userId}`
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch applications");
+  }
+
+  return response.json();
 }
 
 /**
@@ -83,3 +95,4 @@ export async function getCurrentUser() {
     email: string;
   }>;
 }
+

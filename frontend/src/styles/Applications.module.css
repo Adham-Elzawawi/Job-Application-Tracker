@@ -1,0 +1,55 @@
+
+.applicationsTable {
+  width: 100%;
+  min-width: 650px;
+}
+
+.applicationRow {
+  transition: background-color 0.2s ease;
+}
+
+.applicationRow:hover {
+  background-color: var(--bg-hover, #f8f6fc);
+}
+
+.applicationRow td {
+  vertical-align: middle;
+}
+
+.companyName {
+  font-weight: 600;
+  color: var(--text-primary, #252336);
+}
+
+.date {
+  color: var(--text-secondary, #807c91);
+  white-space: nowrap;
+}
+
+.accepted {
+  color: var(--status-offer, #16844d);
+  background-color: var(--status-offer-bg, #e5f6ec);
+}
+
+.emptyState {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.emptyState h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary, #252336);
+  margin-bottom: 8px;
+}
+
+.emptyState p {
+  font-size: 14px;
+  color: var(--text-secondary, #807c91);
+}
+
+@media (max-width: 768px) {
+  .applicationsTable {
+    min-width: 650px;
+  }
+}
