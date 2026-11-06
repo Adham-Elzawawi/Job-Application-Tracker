@@ -15,40 +15,41 @@ router = APIRouter(tags=["Applications"])
 
 
 @router.get("/applications/me")
-def get_applications(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_applications(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     applications = db.scalars(
         select(Application).where(Application.user_id == user.id)
     ).all()
 
-    print(applications)
     return [
         {
             "id": application.id,
             "company_name": application.company_name,
             "position": application.position,
             "status": application.status,
-            "applied_at": application.applied_at,
+            "last_email_date": application.last_email_date,
+            "created_at": application.created_at,
+            "updated_at": application.updated_at,
         }
         for application in applications
     ]
 
 
 @router.post("/sendApplication", status_code=status.HTTP_201_CREATED)
-def send_application(application: ApplicationForm, db: Session = Depends(get_db)):
-    user = db.get(User, application.user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
+def send_application(
+    application: ApplicationForm,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     new_application = Application(
-        user_id=application.user_id,
+        user_id=user.id,
         company_name=application.company_name,
         position=application.position,
         status=application.status,
-        applied_at=application.applied_at,
     )
+
     db.add(new_application)
 
     try:
@@ -57,11 +58,11 @@ def send_application(application: ApplicationForm, db: Session = Depends(get_db)
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Application violates a database constraint",
+            status_code=409,
+            detail="Application violates a database constraint"
         )
 
     return {
         "message": "Application received",
-        "application_id": new_application.id,
+        "application_id": new_application.id
     }

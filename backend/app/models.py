@@ -38,6 +38,7 @@ class User(Base):
         server_default=func.now(),
     )
 
+
 class Application(Base):
     __tablename__ = "applications"
 
@@ -68,8 +69,8 @@ class Application(Base):
         default="applied",
     )
 
-    applied_at: Mapped[date | None] = mapped_column(
-        Date,
+    last_email_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
     )
 
@@ -78,15 +79,10 @@ class Application(Base):
         server_default=func.now(),
     )
 
-    last_heard_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-
     updated_at: Mapped[datetime] = mapped_column(
-    DateTime(timezone=True),
-    server_default=func.now(),
-    onupdate=func.now(),
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
 

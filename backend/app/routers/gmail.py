@@ -1,14 +1,22 @@
 
 import secrets
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import RedirectResponse
+
+from sqlalchemy.orm import Session
 
 from ..services.gmail_service import (
     fetch_analyzed_messages,
     finish_google_oauth,
     start_google_oauth,
+    filter_emails,
 )
+
+from ..dependencies import get_current_user
+from ..database import get_db
+from ..schemas import EmailAnalysis
+from ..models import User
 
 router = APIRouter(prefix="/gmail", tags=["Gmail"])
 
@@ -49,6 +57,24 @@ def gmail_callback(request: Request, code: str, state: str):
     return response
 
 
-@router.get("/messages")
-def gmail_messages():
-    return fetch_analyzed_messages()
+
+@router.post("/messages")
+def gmail_messages(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    gmail_result = fetch_analyzed_messages()
+
+    analyses = [
+        EmailAnalysis.model_validate(email["analysis"])
+        for email in gmail_result["emails"]
+    ]
+
+    result = filter_emails(analyses, db, user)
+
+    return {
+        "message": "Finished syncing applications",
+        "added": result["added"],
+        "updated": result["updated"]
+    }
+

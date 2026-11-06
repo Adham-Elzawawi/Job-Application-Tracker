@@ -6,8 +6,15 @@ from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from datetime import datetime, timezone
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from .llm import analyze_email
+from ..schemas import EmailAnalysis
+from ..models import Application, User
+
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 CLIENT_SECRETS_FILE = BACKEND_DIR / "credentials.json"
@@ -94,10 +101,17 @@ def fetch_analyzed_messages() -> dict:
             for header in email.get("payload", {}).get("headers", [])
         }
 
+        # Convert Gmail's timestamp from milliseconds to a datetime.
+        email_date = datetime.fromtimestamp(
+            int(email["internalDate"]) / 1000,
+            tz=timezone.utc
+        )
+
         analysis = analyze_email(
             sender=headers.get("from", ""),
             subject=headers.get("subject", ""),
             content=email.get("snippet", ""),
+            email_date=email_date,
         )
 
         if not analysis.is_application_related:
@@ -126,3 +140,85 @@ def fetch_analyzed_messages() -> dict:
         "accepted": accepted,
         "rejected": rejected,
     }
+
+
+def filter_emails(
+    emails: list[EmailAnalysis],
+    db: Session,
+    user: User
+):
+    """Create or update applications using the latest email status."""
+
+    added_applications = 0
+    updated_applications = set()
+
+    def normalize(value: str) -> str:
+        return " ".join(value.casefold().split())
+
+    try:
+        applications = db.scalars(
+            select(Application).where(Application.user_id == user.id)
+        ).all()
+
+        application_map = {
+            (normalize(app.company_name), normalize(app.position)): app
+            for app in applications
+        }
+
+        # Only keep emails with enough information.
+        valid_emails = [
+            email for email in emails
+            if email.is_application_related
+            and email.company_name
+            and email.position
+            and email.status
+            and email.email_date is not None
+        ]
+
+        # Process emails chronologically.
+        sorted_emails = sorted(
+            valid_emails,
+            key=lambda email: email.email_date
+        )
+
+        for email in sorted_emails:
+            key = (
+                normalize(email.company_name),
+                normalize(email.position)
+            )
+
+            application = application_map.get(key)
+
+            if application is None:
+                application = Application(
+                    user_id=user.id,
+                    company_name=email.company_name,
+                    position=email.position,
+                    status=email.status,
+                    last_email_date=email.email_date
+                )
+
+                db.add(application)
+                application_map[key] = application
+                added_applications += 1
+
+            elif (
+                application.last_email_date is None
+                or email.email_date > application.last_email_date
+            ):
+                application.status = email.status
+                application.last_email_date = email.email_date
+
+                updated_applications.add(key)
+
+        db.commit()
+
+        return {
+            "added": added_applications,
+            "updated": len(updated_applications)
+        }
+
+    except Exception:
+        db.rollback()
+        raise
+

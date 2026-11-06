@@ -137,3 +137,30 @@ export async function getCurrentUser() {
     email: string;
   }>;
 }
+
+
+export async function readEmail() {
+  const sessionToken = await getSession();
+
+  if (!sessionToken) {
+    throw new Error("Not authenticated");
+  }
+
+  const response = await fetch(`${API_URL}/gmail/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to synchronize Gmail applications");
+  }
+
+  return response.json() as Promise<{
+    message: string;
+    added: number;
+    updated: number;
+  }>;
+}

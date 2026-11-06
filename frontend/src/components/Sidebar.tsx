@@ -15,7 +15,10 @@ export default function Sidebar() {
           Dashboard
         </Link>
         <Link href="/applications" className={`nav-link ${currentPath === '/applications' ? 'active' : ''}`}>
-          Applications
+          Applications Overview
+        </Link>
+        <Link href="/addApplication" className={`nav-link ${currentPath === '/addApplication' ? 'active' : ''}`}>
+          Add Applications
         </Link>
         <Link href="/settings" className={`nav-link ${currentPath === '/settings' ? 'active' : ''}`}>
           Settings

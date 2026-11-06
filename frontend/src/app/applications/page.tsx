@@ -4,21 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getApplications, getCurrentUser } from "@/lib/api";
 import styles from "@/styles/Applications.module.css";
-
-type Application = {
-  id: string;
-  company_name: string;
-  position: string;
-  status: "applied" | "interview" | "accepted" | "rejected";
-  applied_at: string;
-};
-
-const statusLabels = {
-  applied: "Applied",
-  interview: "Interview",
-  accepted: "Accepted",
-  rejected: "Rejected",
-};
+import { Application, statusLabels } from "@/lib/application";
 
 export default function ApplicationsPage() {
   return (
@@ -50,14 +36,16 @@ async function ApplicationsList() {
     redirect("/login");
   }
 
-  const applications = (await getApplications()) as Application[];
+  const applications = (await getApplications() ?? []) as Application[];
 
+  // Sort applications by the latest email date,
+  // falling back to the record creation date.
   applications.sort((a, b) => {
-    let a_date = new Date(a.applied_at);
-    let b_date = new Date(b.applied_at);
+    const a_date = new Date(a.last_email_date ?? a.created_at);
+    const b_date = new Date(b.last_email_date ?? b.created_at);
 
-    return a_date <= b_date ? 1 : -1;
-  })
+    return b_date.getTime() - a_date.getTime();
+  });
 
   return (
     <div className="card">
@@ -74,7 +62,7 @@ async function ApplicationsList() {
                 <th>Company</th>
                 <th>Position</th>
                 <th>Status</th>
-                <th>Date Applied</th>
+                <th>Latest Activity</th>
               </tr>
             </thead>
 
@@ -100,7 +88,9 @@ async function ApplicationsList() {
                   </td>
 
                   <td className={styles.date}>
-                    {new Date(app.applied_at).toLocaleDateString("en-GB", {
+                    {new Date(
+                      app.last_email_date ?? app.created_at
+                    ).toLocaleDateString("en-GB", {
                       day: "2-digit",
                       month: "short",
                       year: "numeric",
