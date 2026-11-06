@@ -9,16 +9,18 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Application, User
 from ..schemas import ApplicationForm
+from ..dependencies import get_current_user
 
 router = APIRouter(tags=["Applications"])
 
 
-@router.get("/applications/{user_id}")
-def get_applications(user_id: UUID, db: Session = Depends(get_db)):
+@router.get("/applications/me")
+def get_applications(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     applications = db.scalars(
-        select(Application).where(Application.user_id == user_id)
+        select(Application).where(Application.user_id == user.id)
     ).all()
 
+    print(applications)
     return [
         {
             "id": application.id,

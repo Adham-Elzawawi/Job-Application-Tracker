@@ -1,11 +1,15 @@
 
-import { LoginFormSchema, SignupFormSchema, ApplicationFormSchema} from "@/lib/definitions";
-import { getSession } from "@/lib/session";
-import { cacheLife, cacheTag } from "next/cache";
+import "server-only";
 
+import {
+  LoginFormSchema,
+  SignupFormSchema,
+  ApplicationFormSchema,
+} from "@/lib/definitions";
+
+import { getSession } from "@/lib/session";
 import type { z } from "zod";
 
-// Infer request types from the existing Zod schemas.
 type LoginData = z.infer<typeof LoginFormSchema>;
 type SignupData = z.infer<typeof SignupFormSchema>;
 type ApplicationData = z.infer<typeof ApplicationFormSchema>;
@@ -13,17 +17,21 @@ type ApplicationData = z.infer<typeof ApplicationFormSchema>;
 const API_URL = "http://localhost:8000";
 
 /**
- * Retrieve all applications belonging to a user and save it to the cache.
+ * Retrieve applications belonging to the authenticated user.
  */
-export async function getApplications(userId: string) {
-  "use cache";
+export async function getApplications() {
+  const sessionToken = await getSession();
 
-  cacheLife("minutes");
-  cacheTag(`applications:${userId}`);
+  if (!sessionToken) {
+    return null;
+  }
 
-  const response = await fetch(
-    `${API_URL}/applications/${userId}`
-  );
+  const response = await fetch(`${API_URL}/applications/me`, {
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+    },
+    cache: "no-store",
+  });
 
   if (!response.ok) {
     throw new Error("Failed to fetch applications");
@@ -59,7 +67,7 @@ export async function signupCall(data: SignupData) {
 }
 
 /**
- * Send Logout to remove session from backend.
+ * Revoke the current session in FastAPI.
  */
 export async function logoutCall() {
   const sessionToken = await getSession();
@@ -82,18 +90,29 @@ export async function logoutCall() {
 }
 
 /**
- * Send application information to FastAPI.
+ * Create an application for the authenticated user.
  */
 export async function createApplication(data: ApplicationData) {
+  const sessionToken = await getSession();
+
+  if (!sessionToken) {
+    throw new Error("Not authenticated");
+  }
+
   return fetch(`${API_URL}/sendApplication`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${sessionToken}`,
     },
     body: JSON.stringify(data),
+    cache: "no-store",
   });
 }
 
+/**
+ * Retrieve the currently authenticated user.
+ */
 export async function getCurrentUser() {
   const sessionToken = await getSession();
 
@@ -101,7 +120,7 @@ export async function getCurrentUser() {
     return null;
   }
 
-  const response = await fetch("http://localhost:8000/users/me", {
+  const response = await fetch(`${API_URL}/users/me`, {
     headers: {
       Authorization: `Bearer ${sessionToken}`,
     },

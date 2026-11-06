@@ -12,7 +12,7 @@ export default async function DashboardPage() {
 
   const userId = user.id;
   
-  const applications = await getApplications(userId);
+  const applications = await getApplications();
   
   const totalApplications = applications.length;
   const applicationsInProgress = applications.filter((app: any) => app.status != "accepted" && app.status != "rejected").length;

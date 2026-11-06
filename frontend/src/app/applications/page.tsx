@@ -50,7 +50,7 @@ async function ApplicationsList() {
     redirect("/login");
   }
 
-  const applications = (await getApplications(user.id)) as Application[];
+  const applications = (await getApplications()) as Application[];
 
   applications.sort((a, b) => {
     let a_date = new Date(a.applied_at);
