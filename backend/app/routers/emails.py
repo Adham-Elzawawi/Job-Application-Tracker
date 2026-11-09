@@ -77,7 +77,7 @@ def add_email(
 
 
 @router.delete("/deleteEmail", status_code=status.HTTP_200_OK)
-def deleteEmail(
+def delete_Email(
     deleteEmailRequest: EmailRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)

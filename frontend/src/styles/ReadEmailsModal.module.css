@@ -1,0 +1,129 @@
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.55);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.modal {
+  background: #ffffff;
+  color: #1f2937;
+  width: 100%;
+  max-width: 460px;
+  padding: 28px;
+  border-radius: 12px;
+
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  animation: slideIn 0.25s ease-out;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.closeButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 6px;
+
+  cursor: pointer;
+  color: #6b7280;
+}
+
+.closeButton:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.description {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 12px 0 22px;
+}
+
+.emailList {
+  display: flex;
+  flex-direction: column;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.emailRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 14px 16px;
+  font-size: 14px;
+  cursor: pointer;
+
+  transition: background 0.2s ease;
+}
+
+.emailRow:not(:last-child) {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.emailRow:hover {
+  background: #f3f4f6;
+}
+
+.emailRow input {
+  width: 17px;
+  height: 17px;
+  accent-color: #2563eb;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.emailRow span {
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.error {
+  color: #dc2626;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

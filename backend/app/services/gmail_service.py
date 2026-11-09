@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .llm import analyze_email
+from .llm import analyze_emails_batch
 from ..schemas import EmailAnalysis
 from ..models import Application, User
 
@@ -32,7 +32,7 @@ def start_google_oauth() -> tuple[str, str, str]:
     flow.redirect_uri = REDIRECT_URI
     authorization_url, state = flow.authorization_url(
         access_type="offline",
-        prompt="consent",
+        prompt="consent select_account",
     )
     if not flow.code_verifier:
         raise HTTPException(status_code=500, detail="OAuth PKCE verifier not generated")
@@ -77,17 +77,21 @@ def get_gmail_client():
 
 def fetch_analyzed_messages() -> dict:
     service = get_gmail_client()
+
+    profile = service.users().getProfile(userId="me").execute()
+    print(f"Reading Gmail account: {profile['emailAddress']}", flush=True)
+
+
     result = service.users().messages().list(
         userId="me",
-        maxResults=10,
-        q="newer_than:600d {application interview job}",
+        maxResults=100,
+        q="newer_than:50d",
     ).execute()
 
-    emails = []
-    in_progress = 0
-    accepted = 0
-    rejected = 0
 
+    raw_emails = []
+
+    # Step 1: Retrieve Gmail message metadata
     for message in result.get("messages", []):
         email = service.users().messages().get(
             userId="me",
@@ -101,37 +105,54 @@ def fetch_analyzed_messages() -> dict:
             for header in email.get("payload", {}).get("headers", [])
         }
 
-        # Convert Gmail's timestamp from milliseconds to a datetime.
         email_date = datetime.fromtimestamp(
             int(email["internalDate"]) / 1000,
-            tz=timezone.utc
+            tz=timezone.utc,
         )
 
-        analysis = analyze_email(
-            sender=headers.get("from", ""),
-            subject=headers.get("subject", ""),
-            content=email.get("snippet", ""),
-            email_date=email_date,
-        )
-
-        if not analysis.is_application_related:
-            continue
-
-        emails.append({
+        raw_emails.append({
             "id": email["id"],
-            "from": headers.get("from"),
-            "subject": headers.get("subject"),
+            "sender": headers.get("from", ""),
+            "subject": headers.get("subject", ""),
+            "content": email.get("snippet", ""),
             "date": headers.get("date"),
-            "snippet": email.get("snippet"),
-            "analysis": analysis.model_dump(),
+            "email_date": email_date,
         })
 
-        if analysis.status == "accepted":
-            accepted += 1
-        elif analysis.status == "rejected":
-            rejected += 1
-        elif analysis.status in ("applied", "interview"):
-            in_progress += 1
+    # Step 2: Analyze messages in batches
+    emails = []
+    in_progress = 0
+    accepted = 0
+    rejected = 0
+
+    BATCH_SIZE = 5
+
+    for i in range(0, len(raw_emails), BATCH_SIZE):
+        batch = raw_emails[i:i + BATCH_SIZE]
+
+        analyses = analyze_emails_batch(batch)
+
+        for email, analysis in zip(batch, analyses):
+            if not analysis.is_application_related:
+                continue
+
+            emails.append({
+                "id": email["id"],
+                "from": email["sender"],
+                "subject": email["subject"],
+                "date": email["date"],
+                "snippet": email["content"],
+                "analysis": analysis.model_dump(),
+            })
+
+            if analysis.status == "accepted":
+                accepted += 1
+            elif analysis.status == "rejected":
+                rejected += 1
+            elif analysis.status in ("applied", "interview"):
+                in_progress += 1
+
+    print(f"Relevant emails: {len(emails)}", flush=True)
 
     return {
         "emails": emails,
@@ -140,6 +161,7 @@ def fetch_analyzed_messages() -> dict:
         "accepted": accepted,
         "rejected": rejected,
     }
+
 
 
 def filter_emails(
