@@ -68,3 +68,8 @@ export const ApplicationFormSchema = z.object({
     { error: "Invalid application status." }
   ),
 });
+
+
+export const EmailForm = z.object({
+  email: z.email({ error: "Please enter a valid email." }).trim()
+})

@@ -27,3 +27,6 @@ class EmailAnalysis(BaseModel):
         "applied", "interview", "accepted", "rejected"
     ] | None = None
     email_date: datetime | None = None
+
+class EmailRequest(BaseModel):
+    email: EmailStr

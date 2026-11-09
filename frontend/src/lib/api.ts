@@ -164,3 +164,32 @@ export async function readEmail() {
     updated: number;
   }>;
 }
+
+export async function addEmail(email: string) {
+  const sessionToken = await getSession();
+
+  if (!sessionToken) {
+    throw new Error("Not authenticated");
+  }
+
+  const response = await fetch(`${API_URL}/email/addEmail`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: email,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+
+    throw new Error(
+      `Failed to add email (${response.status}): ${error}`
+    );
+  }
+
+  return response.json();
+}
