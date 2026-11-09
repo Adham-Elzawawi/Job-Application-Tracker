@@ -193,3 +193,30 @@ export async function addEmail(email: string) {
 
   return response.json();
 }
+
+export async function getEmails() {
+  const sessionToken = await getSession();
+
+  if (!sessionToken) {
+    throw new Error("Not authenticated");
+  }
+
+  const response = await fetch(`${API_URL}/email/getEmails`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch emails");
+  }
+
+  return response.json() as Promise<{
+    emails: {
+      id: string;
+      email: string;
+    }[];
+  }>;
+}

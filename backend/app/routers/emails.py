@@ -17,10 +17,20 @@ def get_emails(
     db: Session = Depends(get_db)
 ):
     emails = db.scalars(
-        select(Emails).where(Emails.user_id == user.id)
+        select(Emails)
+        .where(Emails.user_id == user.id)
+        .order_by(Emails.added_on)
     ).all()
 
-    return emails
+    return {
+        "emails": [
+            {
+                "id": str(email.id),
+                "email": email.email
+            }
+            for email in emails
+        ]
+    }
 
 @router.post("/addEmail", status_code=status.HTTP_201_CREATED)
 def add_email(
