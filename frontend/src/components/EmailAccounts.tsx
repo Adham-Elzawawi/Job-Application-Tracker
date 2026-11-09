@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import AddEmailModal from "@/components/AddEmailModal";
-import { getEmailsAction } from "@/action/email";
+import { getEmailsAction, deleteEmailAction } from "@/action/email";
 import { Trash2 } from "lucide-react";
 
 import styles from "@/styles/EmailAccounts.module.css";
@@ -16,8 +17,10 @@ export default function EmailAccounts() {
   const [isOpen, setIsOpen] = useState(false);
   const [emails, setEmails] = useState<EmailAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingEmail, setDeletingEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch emails from the backend
   const loadEmails = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -33,13 +36,35 @@ export default function EmailAccounts() {
     }
   }, []);
 
+  // Fetch emails when the component mounts
   useEffect(() => {
     void loadEmails();
   }, [loadEmails]);
 
+  // Close modal and refresh emails after adding an account
   function handleClose() {
     setIsOpen(false);
     void loadEmails();
+  }
+
+  // Delete email and update the UI without refreshing
+  async function handleDeleteEmail(email: string) {
+    setDeletingEmail(email);
+    setError(null);
+
+    try {
+      await deleteEmailAction(email);
+
+      // Remove the deleted email from React state
+      setEmails((prev) =>
+        prev.filter((account) => account.email !== email)
+      );
+    } catch (error) {
+      console.error("Failed to delete email:", error);
+      setError("Failed to delete email. Please try again.");
+    } finally {
+      setDeletingEmail(null);
+    }
   }
 
   return (
@@ -48,10 +73,20 @@ export default function EmailAccounts() {
         <h2>Email Accounts</h2>
 
         <div style={{ marginTop: "16px" }}>
+          {error && (
+            <p
+              role="alert"
+              style={{
+                color: "#ef4444",
+                marginBottom: "12px",
+              }}
+            >
+              {error}
+            </p>
+          )}
+
           {isLoading ? (
             <p>Loading emails...</p>
-          ) : error ? (
-            <p role="alert">{error}</p>
           ) : emails.length === 0 ? (
             <p>No email accounts added yet.</p>
           ) : (
@@ -68,9 +103,18 @@ export default function EmailAccounts() {
                     gap: "12px",
                   }}
                 >
-                  <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      minWidth: 0,
+                    }}
+                  >
                     <span>✉</span>
-                    <span>{account.email}</span>
+                    <span style={{ overflowWrap: "anywhere" }}>
+                      {account.email}
+                    </span>
                   </span>
 
                   <button
@@ -78,6 +122,8 @@ export default function EmailAccounts() {
                     className={styles.deleteButton}
                     aria-label={`Delete ${account.email}`}
                     title="Delete email"
+                    onClick={() => handleDeleteEmail(account.email)}
+                    disabled={deletingEmail === account.email}
                   >
                     <Trash2 size={18} />
                   </button>

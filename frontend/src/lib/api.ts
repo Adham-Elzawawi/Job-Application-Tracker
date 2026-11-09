@@ -220,3 +220,30 @@ export async function getEmails() {
     }[];
   }>;
 }
+
+export async function deleteEmail(email: string) {
+  const sessionToken = await getSession();
+
+  if (!sessionToken) {
+    throw new Error("Not authenticated");
+  }
+
+  const response = await fetch(`${API_URL}/email/deleteEmail`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to delete email: ${error}`);
+  }
+
+  return response.json() as Promise<{
+    message: string;
+  }>;
+}

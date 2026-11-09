@@ -74,3 +74,38 @@ def add_email(
         "email": new_email.email,
         "id": new_email.id
     }
+
+
+@router.delete("/deleteEmail", status_code=status.HTTP_200_OK)
+def deleteEmail(
+    deleteEmailRequest: EmailRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    existing_email = db.scalar(
+        select(Emails).where(
+            Emails.user_id == user.id,
+            Emails.email == deleteEmailRequest.email
+        )
+    )
+
+    if existing_email is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Email not found"
+        )
+
+    db.delete(existing_email)
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email cannot be deleted due to a database constraint"
+        )
+
+    return {
+        "message": "Email deleted successfully"
+    }
