@@ -108,8 +108,7 @@ export default function ReadEmailsButton() {
 
     startTransition(async () => {
       try {
-        {/* TODO: Pass the emails */}
-        const response = await syncEmails();
+        const response = await syncEmails(selectedEmails);
 
         setIsOpen(false);
 

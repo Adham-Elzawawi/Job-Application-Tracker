@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import AddEmailModal from "@/components/AddEmailModal";
-import { getEmailsAction, deleteEmailAction } from "@/action/email";
+import { getEmailsAction, deleteEmailAction, connectGmailAction } from "@/action/email";
 import { Trash2 } from "lucide-react";
 
 import styles from "@/styles/EmailAccounts.module.css";
@@ -134,13 +134,14 @@ export default function EmailAccounts() {
         </div>
 
         <div style={{ marginTop: "16px" }}>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setIsOpen(true)}
-          >
-            + Add Account
-          </button>
+          <form action={connectGmailAction}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+            >
+              + Add Gmail Account
+            </button>
+          </form>
         </div>
       </div>
 

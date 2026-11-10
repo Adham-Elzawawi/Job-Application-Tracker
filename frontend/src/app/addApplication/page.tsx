@@ -20,9 +20,6 @@ export default async function addApplication() {
       {/* Page header */}
       <header className={styles.header}>
         <div>
-          <Link href="/dashboard" className={styles.backLink}>
-            ← Back to Dashboard
-          </Link>
 
           <h1 className={styles.title}>Add Application</h1>
           <p className={styles.description}>

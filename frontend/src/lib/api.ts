@@ -139,7 +139,8 @@ export async function getCurrentUser() {
 }
 
 
-export async function readEmail() {
+
+export async function readEmail(selectedEmails: string[]) {
   const sessionToken = await getSession();
 
   if (!sessionToken) {
@@ -150,12 +151,20 @@ export async function readEmail() {
     method: "POST",
     headers: {
       Authorization: `Bearer ${sessionToken}`,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({
+      emails: selectedEmails,
+    }),
     cache: "no-store",
   });
 
   if (!response.ok) {
-    throw new Error("Failed to synchronize Gmail applications");
+    const error = await response.text();
+
+    throw new Error(
+      `Failed to synchronize Gmail (${response.status}): ${error}`
+    );
   }
 
   return response.json() as Promise<{
@@ -164,6 +173,7 @@ export async function readEmail() {
     updated: number;
   }>;
 }
+
 
 export async function addEmail(email: string) {
   const sessionToken = await getSession();
@@ -245,5 +255,32 @@ export async function deleteEmail(email: string) {
 
   return response.json() as Promise<{
     message: string;
+  }>;
+}
+
+export async function startGmailConnection() {
+  const sessionToken = await getSession();
+
+  if (!sessionToken) {
+    throw new Error("Not authenticated");
+  }
+
+  const response = await fetch(
+    `${API_URL}/gmail/connect/start`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${sessionToken}`,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to start Gmail connection");
+  }
+
+  return response.json() as Promise<{
+    connect_url: string;
   }>;
 }

@@ -29,4 +29,8 @@ class EmailAnalysis(BaseModel):
     email_date: datetime | None = None
 
 class EmailRequest(BaseModel):
-    email: EmailStr
+    email: str
+
+
+class ReadEmailsRequest(BaseModel):
+    emails: list[str]

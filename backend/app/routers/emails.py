@@ -7,7 +7,8 @@ from sqlalchemy import select
 from ..dependencies import get_current_user
 from ..models import User, Emails
 from ..database import get_db
-from ..schemas import EmailRequest
+from ..schemas import EmailAnalysis, ReadEmailsRequest, EmailRequest
+
 
 router = APIRouter(prefix="/email", tags=["Email"])
 

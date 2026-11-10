@@ -1,6 +1,8 @@
 "use server";
 
-import { addEmail, getEmails, deleteEmail } from "@/lib/api";
+import { redirect } from "next/navigation";
+
+import { addEmail, getEmails, deleteEmail, startGmailConnection } from "@/lib/api";
 
 
 export async function addEmailAction(email: string) {
@@ -13,4 +15,10 @@ export async function getEmailsAction() {
 
 export async function deleteEmailAction(email: string) {
   return await deleteEmail(email);
+}
+
+export async function connectGmailAction() {
+  const { connect_url } = await startGmailConnection();
+
+  redirect(connect_url);
 }

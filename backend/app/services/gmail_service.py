@@ -7,13 +7,19 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from datetime import datetime, timezone
+import json
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .llm import analyze_emails_batch
+from .token_crypto import encrypt_token, decrypt_token
+
 from ..schemas import EmailAnalysis
-from ..models import Application, User
+from ..models import Application, User, Emails
+
+from time import perf_counter
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -21,6 +27,8 @@ CLIENT_SECRETS_FILE = BACKEND_DIR / "credentials.json"
 TOKEN_FILE = BACKEND_DIR / ".gmail_token.json"
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 REDIRECT_URI = "http://localhost:8000/gmail/callback"
+
+
 
 
 def start_google_oauth() -> tuple[str, str, str]:
@@ -39,32 +47,81 @@ def start_google_oauth() -> tuple[str, str, str]:
     return authorization_url, state, flow.code_verifier
 
 
-def finish_google_oauth(code: str, state: str, code_verifier: str) -> None:
+def finish_google_oauth(
+    code: str,
+    state: str,
+    code_verifier: str,
+    user_id: UUID,
+    db: Session
+):
     flow = Flow.from_client_secrets_file(
         str(CLIENT_SECRETS_FILE),
         scopes=SCOPES,
         state=state,
         code_verifier=code_verifier,
     )
+
     flow.redirect_uri = REDIRECT_URI
     flow.fetch_token(code=code)
 
-    TOKEN_FILE.write_text(flow.credentials.to_json())
-    TOKEN_FILE.chmod(0o600)
+    # Identify the Gmail account that authorized access
+    service = build(
+        "gmail",
+        "v1",
+        credentials=flow.credentials
+    )
+
+    profile = service.users().getProfile(userId="me").execute()
+    email_address = profile["emailAddress"]
+
+    # Check whether this account already exists for the user
+    account = db.scalar(
+        select(Emails).where(
+            Emails.user_id == user_id,
+            Emails.email == email_address
+        )
+    )
+
+    if account is None:
+        account = Emails(
+            user_id=user_id,
+            email=email_address
+        )
+        db.add(account)
+
+    # Encrypt and save the account's OAuth credentials
+    account.encrypted_token = encrypt_token(
+        flow.credentials.to_json()
+    )
+
+    db.commit()
+
+    return email_address
 
 
-def get_gmail_client():
-    if not TOKEN_FILE.exists():
+def get_gmail_client(account: Emails, db: Session):
+    if not account.encrypted_token:
         raise HTTPException(
             status_code=400,
-            detail="Connect Gmail first at /gmail/connect",
+            detail="Gmail account not connected",
         )
 
-    credentials = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+    decrypted_json = decrypt_token(account.encrypted_token)
+
+    credentials = Credentials.from_authorized_user_info(
+        json.loads(decrypted_json),
+        SCOPES,
+    )
+
     if credentials.expired and credentials.refresh_token:
         credentials.refresh(GoogleRequest())
-        TOKEN_FILE.write_text(credentials.to_json())
-        TOKEN_FILE.chmod(0o600)
+
+        # Encrypt the refreshed credentials
+        account.encrypted_token = encrypt_token(
+            credentials.to_json()
+        )
+
+        db.commit()
 
     if not credentials.valid:
         raise HTTPException(
@@ -75,23 +132,33 @@ def get_gmail_client():
     return build("gmail", "v1", credentials=credentials)
 
 
-def fetch_analyzed_messages() -> dict:
-    service = get_gmail_client()
+
+def fetch_analyzed_messages(
+    account: Emails,
+    db: Session
+) -> dict:
+    total_start = perf_counter()
+
+    service = get_gmail_client(account, db)
 
     profile = service.users().getProfile(userId="me").execute()
-    print(f"Reading Gmail account: {profile['emailAddress']}", flush=True)
 
+    print(
+        f"Reading Gmail account: {profile['emailAddress']}",
+        flush=True,
+    )
+
+    # Step 1: Retrieve Gmail messages
+    fetch_start = perf_counter()
 
     result = service.users().messages().list(
         userId="me",
-        maxResults=100,
-        q="newer_than:50d",
+        maxResults=200,
+        q="newer_than:70d",
     ).execute()
-
 
     raw_emails = []
 
-    # Step 1: Retrieve Gmail message metadata
     for message in result.get("messages", []):
         email = service.users().messages().get(
             userId="me",
@@ -119,6 +186,14 @@ def fetch_analyzed_messages() -> dict:
             "email_date": email_date,
         })
 
+    fetch_duration = perf_counter() - fetch_start
+
+    print(
+        f"\nFetched {len(raw_emails)} emails "
+        f"in {fetch_duration:.2f}s",
+        flush=True,
+    )
+
     # Step 2: Analyze messages in batches
     emails = []
     in_progress = 0
@@ -127,10 +202,23 @@ def fetch_analyzed_messages() -> dict:
 
     BATCH_SIZE = 5
 
+    analysis_start = perf_counter()
+
     for i in range(0, len(raw_emails), BATCH_SIZE):
         batch = raw_emails[i:i + BATCH_SIZE]
 
+        batch_start = perf_counter()
+
         analyses = analyze_emails_batch(batch)
+
+        batch_duration = perf_counter() - batch_start
+
+        print(
+            f"Batch {i // BATCH_SIZE + 1}: "
+            f"{len(batch)} emails analyzed in "
+            f"{batch_duration:.2f}s",
+            flush=True,
+        )
 
         for email, analysis in zip(batch, analyses):
             if not analysis.is_application_related:
@@ -152,7 +240,26 @@ def fetch_analyzed_messages() -> dict:
             elif analysis.status in ("applied", "interview"):
                 in_progress += 1
 
-    print(f"Relevant emails: {len(emails)}", flush=True)
+    analysis_duration = perf_counter() - analysis_start
+    total_duration = perf_counter() - total_start
+
+    # Step 3: Print performance summary
+    print("\n========== PERFORMANCE SUMMARY ==========", flush=True)
+
+    print(f"Emails fetched:       {len(raw_emails)}", flush=True)
+    print(f"Relevant emails:      {len(emails)}", flush=True)
+    print(f"Gmail fetch time:     {fetch_duration:.2f}s", flush=True)
+    print(f"Qwen analysis time:   {analysis_duration:.2f}s", flush=True)
+
+    if raw_emails:
+        print(
+            f"Average per email:    "
+            f"{analysis_duration / len(raw_emails):.2f}s",
+            flush=True,
+        )
+
+    print(f"Total elapsed time:   {total_duration:.2f}s", flush=True)
+    print("=========================================\n", flush=True)
 
     return {
         "emails": emails,
@@ -161,7 +268,6 @@ def fetch_analyzed_messages() -> dict:
         "accepted": accepted,
         "rejected": rejected,
     }
-
 
 
 def filter_emails(

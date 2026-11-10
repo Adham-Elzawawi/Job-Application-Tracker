@@ -1,8 +1,8 @@
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, String, func, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -140,6 +140,27 @@ class Emails(Base):
         nullable=False,
     )
 
+    encrypted_token: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
 
 
-    
+
+class GmailConnectTicket(Base):
+    __tablename__ = "gmail_connect_tickets"
+
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        primary_key=True,
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=False,
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
