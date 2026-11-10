@@ -1,14 +1,24 @@
-
 from pathlib import Path
 
 from fastapi import HTTPException
+
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
 from datetime import datetime, timezone
 import json
 from uuid import UUID
+import base64
+import binascii
+import re
+import random
+from bs4 import BeautifulSoup
+from time import perf_counter
+import time
+
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,6 +28,7 @@ from .token_crypto import encrypt_token, decrypt_token
 
 from ..schemas import EmailAnalysis
 from ..models import Application, User, Emails
+from ..helpers.email_pre_filter import should_skip_pre_llm
 
 from time import perf_counter
 
@@ -133,94 +144,330 @@ def get_gmail_client(account: Emails, db: Session):
 
 
 
+def execute_gmail_request(request, max_retries=6):
+    """
+    Execute a Gmail API request with bounded
+    exponential backoff for transient errors.
+    """
+
+    for attempt in range(max_retries + 1):
+        try:
+            return request.execute()
+
+        except HttpError as error:
+            status = error.resp.status
+
+            content = error.content.decode(
+                "utf-8", errors="replace"
+            ).lower()
+
+            rate_limited = (
+                status == 403
+                and (
+                    "ratelimitexceeded" in content
+                    or "rate_limit_exceeded" in content
+                    or "quota exceeded" in content
+                )
+            )
+
+            retryable = (
+                rate_limited
+                or status in (429, 500, 502, 503, 504)
+            )
+
+            if not retryable or attempt == max_retries:
+                raise
+
+            delay = min(
+                2 ** attempt + random.random(),
+                32,
+            )
+
+            print(
+                f"Gmail API error {status}. "
+                f"Retrying in {delay:.1f}s "
+                f"({attempt + 1}/{max_retries})",
+                flush=True,
+            )
+
+            time.sleep(delay)
+
+
+def extract_email_body(payload: dict) -> str:
+    """Extract readable text from a Gmail MIME payload."""
+
+    plain_parts = []
+    html_parts = []
+
+    def walk(part: dict):
+        # Ignore attachments.
+        if part.get("filename"):
+            return
+
+        mime_type = part.get("mimeType", "").lower()
+        encoded_data = part.get("body", {}).get("data")
+
+        if encoded_data and mime_type in (
+            "text/plain",
+            "text/html",
+        ):
+            try:
+                padded = encoded_data + "=" * (
+                    -len(encoded_data) % 4
+                )
+
+                decoded = base64.urlsafe_b64decode(
+                    padded
+                ).decode("utf-8", errors="replace")
+
+                if mime_type == "text/plain":
+                    plain_parts.append(decoded)
+                else:
+                    html_parts.append(decoded)
+
+            except (ValueError, binascii.Error):
+                pass
+
+        # Handle nested multipart emails.
+        for child in part.get("parts", []):
+            walk(child)
+
+    walk(payload)
+
+    if plain_parts:
+        text = "\n\n".join(plain_parts)
+
+    elif html_parts:
+        html = "\n\n".join(html_parts)
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        for element in soup(
+            ["script", "style", "head"]
+        ):
+            element.decompose()
+
+        text = soup.get_text(
+            separator="\n",
+            strip=True,
+        )
+
+    else:
+        return ""
+
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    return text.strip()
+
+
+
 def fetch_analyzed_messages(
     account: Emails,
-    db: Session
+    db: Session,
 ) -> dict:
+
     total_start = perf_counter()
+
+    MAX_MESSAGES = 40
+    MAX_BODY_CHARS = 4000
+    BATCH_SIZE = 3
+    REQUEST_DELAY = 1.5
+
+    # =========================================
+    # STEP 1: Connect to Gmail
+    # =========================================
 
     service = get_gmail_client(account, db)
 
-    profile = service.users().getProfile(userId="me").execute()
+    profile = execute_gmail_request(
+        service.users().getProfile(userId="me")
+    )
 
     print(
-        f"Reading Gmail account: {profile['emailAddress']}",
+        f"\nReading Gmail account: "
+        f"{profile['emailAddress']}",
         flush=True,
     )
 
-    # Step 1: Retrieve Gmail messages
+    # =========================================
+    # STEP 2: Retrieve message IDs
+    # =========================================
+
     fetch_start = perf_counter()
 
-    result = service.users().messages().list(
-        userId="me",
-        maxResults=200,
-        q="newer_than:70d",
-    ).execute()
+    result = execute_gmail_request(
+        service.users().messages().list(
+            userId="me",
+            maxResults=MAX_MESSAGES,
+            q="newer_than:50d",
+        )
+    )
+
+    messages = result.get("messages", [])
 
     raw_emails = []
+    skipped_emails = 0
+    snippet_fallbacks = 0
 
-    for message in result.get("messages", []):
-        email = service.users().messages().get(
-            userId="me",
-            id=message["id"],
-            format="metadata",
-            metadataHeaders=["From", "Subject", "Date"],
-        ).execute()
+    # =========================================
+    # STEP 3: Metadata + preliminary filtering
+    # =========================================
+
+    for index, message in enumerate(messages, start=1):
+
+        message_id = message["id"]
+
+        metadata = execute_gmail_request(
+            service.users().messages().get(
+                userId="me",
+                id=message_id,
+                format="metadata",
+                metadataHeaders=[
+                    "From",
+                    "Subject",
+                    "Date",
+                ],
+            )
+        )
 
         headers = {
             header["name"].lower(): header["value"]
-            for header in email.get("payload", {}).get("headers", [])
+            for header in metadata.get(
+                "payload", {}
+            ).get("headers", [])
         }
 
+        sender = headers.get("from", "")
+        subject = headers.get("subject", "")
+        snippet = metadata.get("snippet", "")
+
+        # -------------------------------------
+        # Pre-LLM filter
+        # -------------------------------------
+
+        if should_skip_pre_llm(
+            sender=sender,
+            subject=subject,
+            snippet=snippet,
+        ):
+            skipped_emails += 1
+
+            print(
+                f"[{index}/{len(messages)}] "
+                f"Skipped: {subject[:60]}",
+                flush=True,
+            )
+
+            time.sleep(REQUEST_DELAY)
+            continue
+
+        # =====================================
+        # STEP 4: Retrieve full email body
+        # =====================================
+
+        full_message = execute_gmail_request(
+            service.users().messages().get(
+                userId="me",
+                id=message_id,
+                format="full",
+            )
+        )
+
+        content = extract_email_body(
+            full_message.get("payload", {})
+        )
+
+        if not content:
+            snippet_fallbacks += 1
+            content = full_message.get(
+                "snippet", ""
+            )
+
+        # Limit input length for the LLM.
+        content = content[:MAX_BODY_CHARS]
+
+        # Preserve the actual Gmail timestamp.
         email_date = datetime.fromtimestamp(
-            int(email["internalDate"]) / 1000,
+            int(full_message["internalDate"]) / 1000,
             tz=timezone.utc,
         )
 
         raw_emails.append({
-            "id": email["id"],
-            "sender": headers.get("from", ""),
-            "subject": headers.get("subject", ""),
-            "content": email.get("snippet", ""),
-            "date": headers.get("date"),
+            "id": message_id,
+            "sender": sender,
+            "subject": subject,
+            "content": content,
+            "date": headers.get("date", ""),
             "email_date": email_date,
         })
+
+        print(
+            f"[{index}/{len(messages)}] "
+            f"Queued: {subject[:60]}",
+            flush=True,
+        )
+
+        # Spread Gmail API requests over time.
+        time.sleep(REQUEST_DELAY)
 
     fetch_duration = perf_counter() - fetch_start
 
     print(
-        f"\nFetched {len(raw_emails)} emails "
-        f"in {fetch_duration:.2f}s",
+        "\n========== GMAIL FETCH ==========",
         flush=True,
     )
 
-    # Step 2: Analyze messages in batches
+    print(f"Messages scanned:   {len(messages)}")
+    print(f"Messages skipped:   {skipped_emails}")
+    print(f"Messages to Qwen:   {len(raw_emails)}")
+    print(f"Snippet fallbacks:  {snippet_fallbacks}")
+    print(f"Fetch duration:     {fetch_duration:.2f}s")
+
+    # =========================================
+    # STEP 5: Qwen batch analysis
+    # =========================================
+
     emails = []
+
     in_progress = 0
     accepted = 0
     rejected = 0
 
-    BATCH_SIZE = 5
-
     analysis_start = perf_counter()
 
+    total_batches = (
+        len(raw_emails) + BATCH_SIZE - 1
+    ) // BATCH_SIZE
+
     for i in range(0, len(raw_emails), BATCH_SIZE):
+
+        batch_number = i // BATCH_SIZE + 1
         batch = raw_emails[i:i + BATCH_SIZE]
 
         batch_start = perf_counter()
 
+        # Your existing Qwen batch analyzer,
+        # including individual-analysis fallback.
         analyses = analyze_emails_batch(batch)
 
         batch_duration = perf_counter() - batch_start
 
         print(
-            f"Batch {i // BATCH_SIZE + 1}: "
+            f"Batch {batch_number}/{total_batches}: "
             f"{len(batch)} emails analyzed in "
             f"{batch_duration:.2f}s",
             flush=True,
         )
 
-        for email, analysis in zip(batch, analyses):
+        # strict=True detects missing analyses.
+        for email, analysis in zip(
+            batch, analyses, strict=True
+        ):
+
+            # Never trust the LLM to determine
+            # the Gmail message timestamp.
+            analysis.email_date = email["email_date"]
+
             if not analysis.is_application_related:
                 continue
 
@@ -229,37 +476,61 @@ def fetch_analyzed_messages(
                 "from": email["sender"],
                 "subject": email["subject"],
                 "date": email["date"],
-                "snippet": email["content"],
+                "snippet": email["content"][:200],
                 "analysis": analysis.model_dump(),
             })
 
             if analysis.status == "accepted":
                 accepted += 1
+
             elif analysis.status == "rejected":
                 rejected += 1
-            elif analysis.status in ("applied", "interview"):
+
+            elif analysis.status in (
+                "applied",
+                "interview",
+            ):
                 in_progress += 1
 
     analysis_duration = perf_counter() - analysis_start
     total_duration = perf_counter() - total_start
 
-    # Step 3: Print performance summary
-    print("\n========== PERFORMANCE SUMMARY ==========", flush=True)
+    # =========================================
+    # STEP 6: Performance summary
+    # =========================================
 
-    print(f"Emails fetched:       {len(raw_emails)}", flush=True)
-    print(f"Relevant emails:      {len(emails)}", flush=True)
-    print(f"Gmail fetch time:     {fetch_duration:.2f}s", flush=True)
-    print(f"Qwen analysis time:   {analysis_duration:.2f}s", flush=True)
+    print(
+        "\n========== PERFORMANCE SUMMARY ==========",
+        flush=True,
+    )
+
+    print(f"Gmail account:       {account.email}")
+    print(f"Messages scanned:    {len(messages)}")
+    print(f"Pre-filtered:        {skipped_emails}")
+    print(f"Sent to Qwen:        {len(raw_emails)}")
+    print(f"Relevant emails:     {len(emails)}")
+    print(f"Snippet fallbacks:   {snippet_fallbacks}")
+
+    print(f"Gmail retrieval:     {fetch_duration:.2f}s")
+    print(f"Qwen analysis:       {analysis_duration:.2f}s")
 
     if raw_emails:
+        average = analysis_duration / len(raw_emails)
+
         print(
-            f"Average per email:    "
-            f"{analysis_duration / len(raw_emails):.2f}s",
-            flush=True,
+            f"Average per email:   {average:.2f}s"
         )
 
-    print(f"Total elapsed time:   {total_duration:.2f}s", flush=True)
-    print("=========================================\n", flush=True)
+    print(f"Total duration:      {total_duration:.2f}s")
+
+    print(
+        "=========================================\n",
+        flush=True,
+    )
+
+    # =========================================
+    # STEP 7: Return analyzed emails
+    # =========================================
 
     return {
         "emails": emails,
@@ -268,6 +539,7 @@ def fetch_analyzed_messages(
         "accepted": accepted,
         "rejected": rejected,
     }
+
 
 
 def filter_emails(
